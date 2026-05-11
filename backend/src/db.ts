@@ -1,6 +1,28 @@
+import { readFileSync } from "fs";
+import path from "path";
 import { Pool } from "pg";
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+
+function sqlDir(): string {
+  return path.join(__dirname, "..", "sql");
+}
+
+async function runInitSqlFile(filename: string) {
+  const full = path.join(sqlDir(), filename);
+  const raw = readFileSync(full, "utf8");
+  const withoutLineComments = raw
+    .split("\n")
+    .filter((line) => !/^\s*--/.test(line))
+    .join("\n");
+  const statements = withoutLineComments
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  for (const stmt of statements) {
+    await pool.query(stmt);
+  }
+}
 
 export const pool = hasDatabaseUrl
   ? new Pool({
@@ -25,6 +47,8 @@ export async function pingDb() {
 
 export async function ensureDbSchema() {
   try {
+    await runInitSqlFile("001_init.sql");
+
     await pool.query(`
       ALTER TABLE points
       ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0
