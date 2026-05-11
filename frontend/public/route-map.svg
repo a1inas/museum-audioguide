@@ -1,0 +1,36 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="800" rx="36" fill="#F6E8D0"/>
+  <rect x="36" y="36" width="1208" height="728" rx="28" fill="#F9F0E0" stroke="#C6A97B" stroke-width="3"/>
+  <path d="M96 632C210 572 286 536 414 524C547 510 648 524 786 498C897 477 1002 426 1170 338" stroke="#C59A61" stroke-width="30" stroke-linecap="round" stroke-dasharray="1 44"/>
+  <path d="M92 638C198 578 281 541 410 529C542 517 648 529 788 504C907 483 1010 430 1176 342" stroke="#7E5B39" stroke-width="10" stroke-linecap="round" stroke-dasharray="1 44"/>
+  <rect x="142" y="162" width="992" height="460" rx="24" fill="#EFE0C4" stroke="#9B7449" stroke-width="4"/>
+  <rect x="202" y="214" width="874" height="356" rx="18" fill="#F8F1E3" stroke="#CDAA7A" stroke-width="3"/>
+  <rect x="246" y="258" width="148" height="270" rx="16" fill="#E6CCAA"/>
+  <rect x="442" y="258" width="160" height="270" rx="16" fill="#E6CCAA"/>
+  <rect x="648" y="258" width="174" height="270" rx="16" fill="#E6CCAA"/>
+  <rect x="866" y="258" width="162" height="270" rx="16" fill="#E6CCAA"/>
+  <rect x="426" y="144" width="424" height="70" rx="18" fill="#E4C59A" stroke="#9B7449" stroke-width="3"/>
+  <path d="M426 179H850" stroke="#9B7449" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 18"/>
+  <rect x="472" y="566" width="336" height="88" rx="18" fill="#E4C59A" stroke="#9B7449" stroke-width="3"/>
+  <path d="M472 610H808" stroke="#9B7449" stroke-width="5" stroke-linecap="round" stroke-dasharray="1 18"/>
+  <circle cx="640" cy="392" r="138" fill="#D7E9EF" stroke="#6C93A5" stroke-width="6"/>
+  <circle cx="640" cy="392" r="92" fill="#EAF5F9" stroke="#6C93A5" stroke-width="4"/>
+  <path d="M548 392H732" stroke="#6C93A5" stroke-width="6" stroke-linecap="round"/>
+  <path d="M640 300V484" stroke="#6C93A5" stroke-width="6" stroke-linecap="round"/>
+  <path d="M312 214V570" stroke="#B58B58" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 18"/>
+  <path d="M522 214V570" stroke="#B58B58" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 18"/>
+  <path d="M735 214V570" stroke="#B58B58" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 18"/>
+  <path d="M948 214V570" stroke="#B58B58" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 18"/>
+  <text x="640" y="112" text-anchor="middle" fill="#5D4124" font-size="42" font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    !E5<0 <0@H@CB0
+  </text>
+  <text x="640" y="730" text-anchor="middle" fill="#7B6141" font-size="28" font-family="Segoe UI, Arial, sans-serif">
+    57C8BA:89 :>;;538C<
+  </text>
+  <text x="185" y="108" fill="#7B6141" font-size="26" font-family="Segoe UI, Arial, sans-serif">
+    ;02=K9 2E>4
+  </text>
+  <text x="910" y="108" fill="#7B6141" font-size="26" font-family="Segoe UI, Arial, sans-serif">
+    =CB@5==89 42>@
+  </text>
+</svg>
