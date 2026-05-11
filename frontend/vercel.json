@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://YOUR_BACKEND_DOMAIN/api/$1"
+      "destination": "https://museum-audioguide.onrender.com/api/$1"
     },
     {
       "source": "/uploads/(.*)",
-      "destination": "https://YOUR_BACKEND_DOMAIN/uploads/$1"
+      "destination": "https://museum-audioguide.onrender.com/uploads/$1"
     },
     {
       "source": "/(.*)",
