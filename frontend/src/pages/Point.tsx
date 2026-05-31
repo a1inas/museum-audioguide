@@ -89,8 +89,33 @@ export function PointPage() {
   const voiceChunksRef = useRef<BlobPart[]>([]);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const voicePendingStopRef = useRef(false);
   const voiceRecordingStartingRef = useRef(false);
+
+  const clearVoiceRecordingTimer = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    recordingStartedAtRef.current = null;
+  };
+
+  const syncVoiceRecordingSeconds = () => {
+    if (recordingStartedAtRef.current == null) return;
+    const elapsed = Math.floor((Date.now() - recordingStartedAtRef.current) / 1000);
+    setRecordingSeconds(elapsed);
+  };
+
+  const getVoiceRecorderOptions = (): MediaRecorderOptions | undefined => {
+    const candidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
+    for (const mimeType of candidates) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType)) {
+        return { mimeType };
+      }
+    }
+    return undefined;
+  };
   const reviewAuthorId = useMemo(() => getOrCreateReviewAuthorId(), []);
 
   useEffect(() => {
@@ -422,10 +447,7 @@ export function PointPage() {
 
   useEffect(() => {
     return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
+      clearVoiceRecordingTimer();
       if (voiceRecorderRef.current && voiceRecorderRef.current.state !== "inactive") {
         voiceRecorderRef.current.stop();
       }
@@ -478,12 +500,13 @@ export function PointPage() {
 
     voiceRecordingStartingRef.current = true;
     voicePendingStopRef.current = false;
+    clearVoiceRecordingTimer();
     setReviewError(null);
     setReviewSaved(false);
     setRecordingSeconds(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, getVoiceRecorderOptions());
       voiceStreamRef.current = stream;
       voiceRecorderRef.current = recorder;
       voiceChunksRef.current = [];
@@ -494,8 +517,16 @@ export function PointPage() {
         }
       };
 
+      recorder.onstart = () => {
+        recordingStartedAtRef.current = Date.now();
+        setRecordingSeconds(0);
+        clearVoiceRecordingTimer();
+        recordingTimerRef.current = setInterval(syncVoiceRecordingSeconds, 250);
+      };
+
       recorder.onstop = async () => {
         voiceRecorderRef.current = null;
+        clearVoiceRecordingTimer();
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(voiceChunksRef.current, { type: mimeType });
         try {
@@ -510,26 +541,20 @@ export function PointPage() {
           voiceStreamRef.current.getTracks().forEach((track) => track.stop());
           voiceStreamRef.current = null;
         }
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
-        }
         setIsRecordingVoice(false);
         voiceRecordingStartingRef.current = false;
         voicePendingStopRef.current = false;
       };
 
-      recorder.start(250);
       setIsRecordingVoice(true);
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
+      recorder.start();
       voiceRecordingStartingRef.current = false;
 
       if (voicePendingStopRef.current) {
         recorder.stop();
       }
     } catch {
+      clearVoiceRecordingTimer();
       setReviewError("Не удалось получить доступ к микрофону.");
       setIsRecordingVoice(false);
       voiceRecordingStartingRef.current = false;
@@ -554,6 +579,10 @@ export function PointPage() {
     }
 
     voicePendingStopRef.current = false;
+    clearVoiceRecordingTimer();
+    if (typeof recorder.requestData === "function") {
+      recorder.requestData();
+    }
     recorder.stop();
   };
 
@@ -574,6 +603,13 @@ export function PointPage() {
     event.preventDefault();
     releaseMicPointer(event.currentTarget, event.pointerId);
     stopVoiceRecording();
+  };
+
+  const handleMicLostPointerCapture = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (voiceRecorderRef.current?.state === "recording") {
+      releaseMicPointer(event.currentTarget, event.pointerId);
+      stopVoiceRecording();
+    }
   };
 
   const clearVoiceReview = () => {
@@ -976,7 +1012,7 @@ export function PointPage() {
                         onPointerDown={handleMicPressStart}
                         onPointerUp={handleMicPressEnd}
                         onPointerCancel={handleMicPressEnd}
-                        onLostPointerCapture={handleMicPressEnd}
+                        onLostPointerCapture={handleMicLostPointerCapture}
                         onContextMenu={(event) => event.preventDefault()}
                         aria-label="Удерживайте для записи"
                         style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
