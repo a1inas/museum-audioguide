@@ -89,34 +89,6 @@ export function PointPage() {
   const voiceChunksRef = useRef<BlobPart[]>([]);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingStartedAtRef = useRef<number | null>(null);
-  const voiceStopWhenReadyRef = useRef(false);
-  const voiceRecordingStartingRef = useRef(false);
-
-  const stopRecordingClock = () => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-  };
-
-  const clearVoiceRecordingTimer = () => {
-    stopRecordingClock();
-    recordingStartedAtRef.current = null;
-  };
-
-  const syncVoiceRecordingSeconds = () => {
-    if (recordingStartedAtRef.current == null) return;
-    const elapsed = Math.floor((Date.now() - recordingStartedAtRef.current) / 1000);
-    setRecordingSeconds(elapsed);
-  };
-
-  const beginRecordingClock = () => {
-    stopRecordingClock();
-    recordingStartedAtRef.current = Date.now();
-    setRecordingSeconds(0);
-    recordingTimerRef.current = setInterval(syncVoiceRecordingSeconds, 250);
-  };
   const reviewAuthorId = useMemo(() => getOrCreateReviewAuthorId(), []);
 
   useEffect(() => {
@@ -448,7 +420,10 @@ export function PointPage() {
 
   useEffect(() => {
     return () => {
-      clearVoiceRecordingTimer();
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
       if (voiceRecorderRef.current && voiceRecorderRef.current.state !== "inactive") {
         voiceRecorderRef.current.stop();
       }
@@ -482,26 +457,20 @@ export function PointPage() {
       reader.readAsDataURL(file);
     });
 
-  const releaseMicPointer = (button: HTMLButtonElement, pointerId: number) => {
-    if (button.hasPointerCapture(pointerId)) {
-      try {
-        button.releasePointerCapture(pointerId);
-      } catch {
-        // ignore if capture was already released
-      }
+  const stopVoiceTracks = () => {
+    if (voiceStreamRef.current) {
+      voiceStreamRef.current.getTracks().forEach((track) => track.stop());
+      voiceStreamRef.current = null;
     }
   };
 
   const startVoiceRecording = async () => {
-    if (isRecordingVoice || voiceRecordingStartingRef.current) return;
+    if (isRecordingVoice) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setReviewError("На этом устройстве запись голоса не поддерживается.");
       return;
     }
 
-    voiceRecordingStartingRef.current = true;
-    voiceStopWhenReadyRef.current = false;
-    clearVoiceRecordingTimer();
     setReviewError(null);
     setReviewSaved(false);
     setRecordingSeconds(0);
@@ -519,77 +488,49 @@ export function PointPage() {
       };
 
       recorder.onstop = async () => {
-        voiceRecorderRef.current = null;
-        clearVoiceRecordingTimer();
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(voiceChunksRef.current, { type: mimeType });
         try {
-          if (blob.size > 0) {
-            const dataUrl = await blobToDataUrl(blob);
-            setReviewVoiceDataUrl(dataUrl);
-          }
+          const dataUrl = await blobToDataUrl(blob);
+          setReviewVoiceDataUrl(dataUrl);
         } catch {
           setReviewError("Не удалось сохранить голосовой отзыв.");
         }
-        if (voiceStreamRef.current) {
-          voiceStreamRef.current.getTracks().forEach((track) => track.stop());
-          voiceStreamRef.current = null;
+        stopVoiceTracks();
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
         }
         setIsRecordingVoice(false);
-        voiceRecordingStartingRef.current = false;
-        voiceStopWhenReadyRef.current = false;
       };
 
       recorder.start();
-      beginRecordingClock();
       setIsRecordingVoice(true);
-      voiceRecordingStartingRef.current = false;
-
-      if (voiceStopWhenReadyRef.current) {
-        recorder.stop();
-      }
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
     } catch {
-      clearVoiceRecordingTimer();
       setReviewError("Не удалось получить доступ к микрофону.");
       setIsRecordingVoice(false);
-      voiceRecordingStartingRef.current = false;
-      voiceStopWhenReadyRef.current = false;
-      if (voiceStreamRef.current) {
-        voiceStreamRef.current.getTracks().forEach((track) => track.stop());
-        voiceStreamRef.current = null;
-      }
+      stopVoiceTracks();
     }
   };
 
   const stopVoiceRecording = () => {
     const recorder = voiceRecorderRef.current;
-
-    if (voiceRecordingStartingRef.current || !recorder || recorder.state === "inactive") {
-      voiceStopWhenReadyRef.current = true;
-      return;
-    }
-
-    voiceStopWhenReadyRef.current = false;
-    stopRecordingClock();
+    if (!recorder || recorder.state === "inactive") return;
     recorder.stop();
   };
 
   const handleMicPressStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    const button = event.currentTarget;
-    try {
-      button.setPointerCapture(event.pointerId);
-    } catch {
-      // Safari may reject capture in rare cases
-    }
-    if (!isRecordingVoice && voiceRecorderRef.current?.state !== "recording") {
+    if (!isRecordingVoice) {
       void startVoiceRecording();
     }
   };
 
   const handleMicPressEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    releaseMicPointer(event.currentTarget, event.pointerId);
     stopVoiceRecording();
   };
 
@@ -992,6 +933,7 @@ export function PointPage() {
                         }
                         onPointerDown={handleMicPressStart}
                         onPointerUp={handleMicPressEnd}
+                        onPointerLeave={handleMicPressEnd}
                         onPointerCancel={handleMicPressEnd}
                         onContextMenu={(event) => event.preventDefault()}
                         aria-label="Удерживайте для записи"
