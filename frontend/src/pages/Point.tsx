@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { Layout } from "../ui/Layout";
 import { FavoriteHeartIcon } from "../ui/FavoriteHeartIcon";
 import { ReviewLikeIcon } from "../ui/ReviewLikeIcon";
+import { MicOutlineIcon } from "../ui/MicOutlineIcon";
+import { TrashOutlineIcon } from "../ui/TrashOutlineIcon";
 
 type Point = {
   slug: string;
@@ -879,14 +881,10 @@ export function PointPage() {
                     type="button"
                     className="point-review-button point-review-button--ghost point-review-inline-delete"
                     onClick={clearVoiceReview}
+                    onContextMenu={(event) => event.preventDefault()}
                     aria-label="Удалить голос"
                   >
-                    <img
-                      src="/trash-outline.svg"
-                      alt=""
-                      aria-hidden="true"
-                      className="point-review-delete-icon"
-                    />
+                    <TrashOutlineIcon className="point-review-delete-icon" />
                   </button>
                 ) : (
                   <div className="point-review-mic-wrap">
@@ -900,14 +898,10 @@ export function PointPage() {
                       onPointerUp={handleMicPressEnd}
                       onPointerLeave={handleMicPressEnd}
                       onPointerCancel={handleMicPressEnd}
+                      onContextMenu={(event) => event.preventDefault()}
                       aria-label="Удерживайте для записи"
                     >
-                      <img
-                        src="/mic-outline.svg"
-                        alt=""
-                        aria-hidden="true"
-                        className="point-review-mic-icon"
-                      />
+                      <MicOutlineIcon className="point-review-mic-icon" />
                     </button>
                     <div className="point-review-mic-tooltip" role="tooltip">
                       {isRecordingVoice

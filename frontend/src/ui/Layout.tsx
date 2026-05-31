@@ -7,6 +7,8 @@ import {
 } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { GuideHelper } from "./GuideHelper";
+import { MicOutlineIcon } from "./MicOutlineIcon";
+import { TrashOutlineIcon } from "./TrashOutlineIcon";
 
 const FEEDBACK_HIDE_UNTIL_KEY = "iziumGuide_feedbackHideUntil";
 const FEEDBACK_SENT_FOR_ROUTE_KEY = "iziumGuide_feedbackSentForRoute";
@@ -777,16 +779,12 @@ export function Layout(props: {
                         type="button"
                         className="point-review-button point-review-button--ghost point-review-inline-delete"
                         onClick={clearFeedbackVoice}
+                        onContextMenu={(event) => event.preventDefault()}
                         aria-label="Удалить голос"
                         disabled={feedbackBusy}
                         style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
                       >
-                        <img
-                          src="/trash-outline.svg"
-                          alt=""
-                          aria-hidden="true"
-                          className="point-review-delete-icon"
-                        />
+                        <TrashOutlineIcon className="point-review-delete-icon" />
                       </button>
                     ) : (
                       <div className="point-review-mic-wrap">
@@ -800,16 +798,12 @@ export function Layout(props: {
                           onPointerUp={handleFeedbackMicPressEnd}
                           onPointerLeave={handleFeedbackMicPressEnd}
                           onPointerCancel={handleFeedbackMicPressEnd}
+                          onContextMenu={(event) => event.preventDefault()}
                           aria-label="Удерживайте для записи"
                           disabled={feedbackBusy}
                           style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
                         >
-                          <img
-                            src="/mic-outline.svg"
-                            alt=""
-                            aria-hidden="true"
-                            className="point-review-mic-icon"
-                          />
+                          <MicOutlineIcon className="point-review-mic-icon" />
                         </button>
                         <div className="point-review-mic-tooltip" role="tooltip">
                           {isRecordingFeedbackVoice
@@ -863,16 +857,12 @@ export function Layout(props: {
                         type="button"
                         className="point-review-button point-review-button--ghost point-review-inline-delete"
                         onClick={clearFeedbackPhoto}
+                        onContextMenu={(event) => event.preventDefault()}
                         aria-label="Удалить фото"
                         disabled={feedbackBusy}
-                      style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
+                        style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
                       >
-                        <img
-                          src="/trash-outline.svg"
-                          alt=""
-                          aria-hidden="true"
-                          className="point-review-delete-icon"
-                        />
+                        <TrashOutlineIcon className="point-review-delete-icon" />
                       </button>
                     )}
                   </div>

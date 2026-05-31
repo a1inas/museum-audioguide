@@ -455,6 +455,10 @@ a:hover {
   box-shadow: 0 8px 16px rgba(120, 90, 52, 0.2);
   cursor: pointer;
   flex-shrink: 0;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .point-review-mic-button--recording {
@@ -470,8 +474,11 @@ a:hover {
   width: 46px;
   height: 46px;
   display: block;
-  object-fit: contain;
-  filter: none;
+  flex-shrink: 0;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .point-review-mic-tooltip {
@@ -544,13 +551,26 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .point-review-delete-icon {
   width: 44px;
   height: 44px;
   display: block;
-  object-fit: contain;
+  flex-shrink: 0;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.point-review-mic-wrap,
+.point-review-text-row {
+  -webkit-touch-callout: none;
 }
 
 .point-review-button--save {
@@ -621,6 +641,14 @@ a:hover {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.point-review-photo-preview,
+.point-review-item-photo {
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 .point-review-photo-preview {
