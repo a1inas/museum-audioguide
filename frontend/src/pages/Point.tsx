@@ -90,14 +90,18 @@ export function PointPage() {
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingStartedAtRef = useRef<number | null>(null);
-  const voicePendingStopRef = useRef(false);
+  const voiceStopWhenReadyRef = useRef(false);
   const voiceRecordingStartingRef = useRef(false);
 
-  const clearVoiceRecordingTimer = () => {
+  const stopRecordingClock = () => {
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
     }
+  };
+
+  const clearVoiceRecordingTimer = () => {
+    stopRecordingClock();
     recordingStartedAtRef.current = null;
   };
 
@@ -107,14 +111,11 @@ export function PointPage() {
     setRecordingSeconds(elapsed);
   };
 
-  const getVoiceRecorderOptions = (): MediaRecorderOptions | undefined => {
-    const candidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"];
-    for (const mimeType of candidates) {
-      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType)) {
-        return { mimeType };
-      }
-    }
-    return undefined;
+  const beginRecordingClock = () => {
+    stopRecordingClock();
+    recordingStartedAtRef.current = Date.now();
+    setRecordingSeconds(0);
+    recordingTimerRef.current = setInterval(syncVoiceRecordingSeconds, 250);
   };
   const reviewAuthorId = useMemo(() => getOrCreateReviewAuthorId(), []);
 
@@ -499,14 +500,14 @@ export function PointPage() {
     }
 
     voiceRecordingStartingRef.current = true;
-    voicePendingStopRef.current = false;
+    voiceStopWhenReadyRef.current = false;
     clearVoiceRecordingTimer();
     setReviewError(null);
     setReviewSaved(false);
     setRecordingSeconds(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, getVoiceRecorderOptions());
+      const recorder = new MediaRecorder(stream);
       voiceStreamRef.current = stream;
       voiceRecorderRef.current = recorder;
       voiceChunksRef.current = [];
@@ -515,13 +516,6 @@ export function PointPage() {
         if (event.data && event.data.size > 0) {
           voiceChunksRef.current.push(event.data);
         }
-      };
-
-      recorder.onstart = () => {
-        recordingStartedAtRef.current = Date.now();
-        setRecordingSeconds(0);
-        clearVoiceRecordingTimer();
-        recordingTimerRef.current = setInterval(syncVoiceRecordingSeconds, 250);
       };
 
       recorder.onstop = async () => {
@@ -543,14 +537,15 @@ export function PointPage() {
         }
         setIsRecordingVoice(false);
         voiceRecordingStartingRef.current = false;
-        voicePendingStopRef.current = false;
+        voiceStopWhenReadyRef.current = false;
       };
 
-      setIsRecordingVoice(true);
       recorder.start();
+      beginRecordingClock();
+      setIsRecordingVoice(true);
       voiceRecordingStartingRef.current = false;
 
-      if (voicePendingStopRef.current) {
+      if (voiceStopWhenReadyRef.current) {
         recorder.stop();
       }
     } catch {
@@ -558,7 +553,7 @@ export function PointPage() {
       setReviewError("Не удалось получить доступ к микрофону.");
       setIsRecordingVoice(false);
       voiceRecordingStartingRef.current = false;
-      voicePendingStopRef.current = false;
+      voiceStopWhenReadyRef.current = false;
       if (voiceStreamRef.current) {
         voiceStreamRef.current.getTracks().forEach((track) => track.stop());
         voiceStreamRef.current = null;
@@ -567,22 +562,15 @@ export function PointPage() {
   };
 
   const stopVoiceRecording = () => {
-    if (voiceRecordingStartingRef.current) {
-      voicePendingStopRef.current = true;
-      return;
-    }
-
     const recorder = voiceRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") {
-      voicePendingStopRef.current = true;
+
+    if (voiceRecordingStartingRef.current || !recorder || recorder.state === "inactive") {
+      voiceStopWhenReadyRef.current = true;
       return;
     }
 
-    voicePendingStopRef.current = false;
-    clearVoiceRecordingTimer();
-    if (typeof recorder.requestData === "function") {
-      recorder.requestData();
-    }
+    voiceStopWhenReadyRef.current = false;
+    stopRecordingClock();
     recorder.stop();
   };
 
@@ -603,13 +591,6 @@ export function PointPage() {
     event.preventDefault();
     releaseMicPointer(event.currentTarget, event.pointerId);
     stopVoiceRecording();
-  };
-
-  const handleMicLostPointerCapture = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (voiceRecorderRef.current?.state === "recording") {
-      releaseMicPointer(event.currentTarget, event.pointerId);
-      stopVoiceRecording();
-    }
   };
 
   const clearVoiceReview = () => {
@@ -1012,7 +993,6 @@ export function PointPage() {
                         onPointerDown={handleMicPressStart}
                         onPointerUp={handleMicPressEnd}
                         onPointerCancel={handleMicPressEnd}
-                        onLostPointerCapture={handleMicLostPointerCapture}
                         onContextMenu={(event) => event.preventDefault()}
                         aria-label="Удерживайте для записи"
                         style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
