@@ -89,6 +89,8 @@ export function PointPage() {
   const voiceChunksRef = useRef<BlobPart[]>([]);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voicePendingStopRef = useRef(false);
+  const voiceRecordingStartingRef = useRef(false);
   const reviewAuthorId = useMemo(() => getOrCreateReviewAuthorId(), []);
 
   useEffect(() => {
@@ -457,13 +459,25 @@ export function PointPage() {
       reader.readAsDataURL(file);
     });
 
+  const releaseMicPointer = (button: HTMLButtonElement, pointerId: number) => {
+    if (button.hasPointerCapture(pointerId)) {
+      try {
+        button.releasePointerCapture(pointerId);
+      } catch {
+        // ignore if capture was already released
+      }
+    }
+  };
+
   const startVoiceRecording = async () => {
-    if (isRecordingVoice) return;
+    if (isRecordingVoice || voiceRecordingStartingRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setReviewError("На этом устройстве запись голоса не поддерживается.");
       return;
     }
 
+    voiceRecordingStartingRef.current = true;
+    voicePendingStopRef.current = false;
     setReviewError(null);
     setReviewSaved(false);
     setRecordingSeconds(0);
@@ -481,11 +495,14 @@ export function PointPage() {
       };
 
       recorder.onstop = async () => {
+        voiceRecorderRef.current = null;
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(voiceChunksRef.current, { type: mimeType });
         try {
-          const dataUrl = await blobToDataUrl(blob);
-          setReviewVoiceDataUrl(dataUrl);
+          if (blob.size > 0) {
+            const dataUrl = await blobToDataUrl(blob);
+            setReviewVoiceDataUrl(dataUrl);
+          }
         } catch {
           setReviewError("Не удалось сохранить голосовой отзыв.");
         }
@@ -498,34 +515,64 @@ export function PointPage() {
           recordingTimerRef.current = null;
         }
         setIsRecordingVoice(false);
+        voiceRecordingStartingRef.current = false;
+        voicePendingStopRef.current = false;
       };
 
-      recorder.start();
+      recorder.start(250);
       setIsRecordingVoice(true);
       recordingTimerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => prev + 1);
       }, 1000);
+      voiceRecordingStartingRef.current = false;
+
+      if (voicePendingStopRef.current) {
+        recorder.stop();
+      }
     } catch {
       setReviewError("Не удалось получить доступ к микрофону.");
       setIsRecordingVoice(false);
+      voiceRecordingStartingRef.current = false;
+      voicePendingStopRef.current = false;
+      if (voiceStreamRef.current) {
+        voiceStreamRef.current.getTracks().forEach((track) => track.stop());
+        voiceStreamRef.current = null;
+      }
     }
   };
 
   const stopVoiceRecording = () => {
+    if (voiceRecordingStartingRef.current) {
+      voicePendingStopRef.current = true;
+      return;
+    }
+
     const recorder = voiceRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
+    if (!recorder || recorder.state === "inactive") {
+      voicePendingStopRef.current = true;
+      return;
+    }
+
+    voicePendingStopRef.current = false;
     recorder.stop();
   };
 
   const handleMicPressStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    if (!isRecordingVoice) {
+    const button = event.currentTarget;
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch {
+      // Safari may reject capture in rare cases
+    }
+    if (!isRecordingVoice && voiceRecorderRef.current?.state !== "recording") {
       void startVoiceRecording();
     }
   };
 
   const handleMicPressEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    releaseMicPointer(event.currentTarget, event.pointerId);
     stopVoiceRecording();
   };
 
@@ -855,61 +902,95 @@ export function PointPage() {
                 ))}
               </div>
 
-              <div className="point-review-text-row">
-                {isRecordingVoice ? (
-                  <div className="point-review-recording-inline">
-                    Идет запись: {formatRecordingTime(recordingSeconds)}
-                  </div>
-                ) : reviewVoiceDataUrl ? (
-                  <audio className="point-review-audio-inline" controls src={reviewVoiceDataUrl} />
-                ) : (
-                  <textarea
-                    className={
-                      "point-review-text" + (isReviewEditorExpanded ? " point-review-text--expanded" : "")
-                    }
-                    placeholder="Напишите ваш отзыв..."
-                    value={reviewText}
-                    onFocus={() => setIsReviewEditorExpanded(true)}
-                    onChange={(e) => {
-                      setReviewText(e.target.value);
-                      setReviewSaved(false);
-                    }}
-                  />
-                )}
-                {reviewVoiceDataUrl && !isRecordingVoice ? (
-                  <button
-                    type="button"
-                    className="point-review-button point-review-button--ghost point-review-inline-delete"
-                    onClick={clearVoiceReview}
-                    onContextMenu={(event) => event.preventDefault()}
-                    aria-label="Удалить голос"
-                  >
-                    <TrashOutlineIcon className="point-review-delete-icon" />
-                  </button>
-                ) : (
-                  <div className="point-review-mic-wrap">
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {isRecordingVoice ? (
+                    <div className="point-review-recording-inline" style={{ minHeight: 76 }}>
+                      Идет запись: {formatRecordingTime(recordingSeconds)}
+                    </div>
+                  ) : reviewVoiceDataUrl ? (
+                    <audio
+                      className="point-review-audio-inline"
+                      controls
+                      src={reviewVoiceDataUrl}
+                      style={{ width: "100%" }}
+                    />
+                  ) : (
+                    <textarea
+                      className={
+                        "point-review-text" +
+                        (isReviewEditorExpanded ? " point-review-text--expanded" : "")
+                      }
+                      placeholder="Напишите ваш отзыв..."
+                      value={reviewText}
+                      onFocus={() => setIsReviewEditorExpanded(true)}
+                      onChange={(e) => {
+                        setReviewText(e.target.value);
+                        setReviewSaved(false);
+                      }}
+                      style={
+                        isReviewEditorExpanded
+                          ? undefined
+                          : { minHeight: 76, maxHeight: 76 }
+                      }
+                    />
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    gap: 8,
+                    width: 100,
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    flexShrink: 0,
+                  }}
+                >
+                  {reviewVoiceDataUrl && !isRecordingVoice ? (
                     <button
                       type="button"
-                      className={
-                        "point-review-mic-button" +
-                        (isRecordingVoice ? " point-review-mic-button--recording" : "")
-                      }
-                      onPointerDown={handleMicPressStart}
-                      onPointerUp={handleMicPressEnd}
-                      onPointerLeave={handleMicPressEnd}
-                      onPointerCancel={handleMicPressEnd}
+                      className="point-review-button point-review-button--ghost point-review-inline-delete"
+                      onClick={clearVoiceReview}
                       onContextMenu={(event) => event.preventDefault()}
-                      aria-label="Удерживайте для записи"
+                      aria-label="Удалить голос"
+                      style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
                     >
-                      <MicOutlineIcon className="point-review-mic-icon" />
+                      <TrashOutlineIcon className="point-review-delete-icon" />
                     </button>
-                    <div className="point-review-mic-tooltip" role="tooltip">
-                      {isRecordingVoice
-                        ? "Нажмите на микрофон, чтобы остановить запись"
-                        : "Нажмите на микрофон для записи отзыва"}
+                  ) : (
+                    <div className="point-review-mic-wrap">
+                      <button
+                        type="button"
+                        className={
+                          "point-review-mic-button" +
+                          (isRecordingVoice ? " point-review-mic-button--recording" : "")
+                        }
+                        onPointerDown={handleMicPressStart}
+                        onPointerUp={handleMicPressEnd}
+                        onPointerCancel={handleMicPressEnd}
+                        onLostPointerCapture={handleMicPressEnd}
+                        onContextMenu={(event) => event.preventDefault()}
+                        aria-label="Удерживайте для записи"
+                        style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
+                      >
+                        <MicOutlineIcon className="point-review-mic-icon" />
+                      </button>
+                      <div className="point-review-mic-tooltip" role="tooltip">
+                        {isRecordingVoice
+                          ? "Запись идет, пока вы держите кнопку"
+                          : "Удерживайте кнопку для записи"}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {reviewPhotoDataUrl && (
