@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useHoldToRecordVoice } from "../lib/useHoldToRecordVoice";
 import { Layout } from "../ui/Layout";
 import { FavoriteHeartIcon } from "../ui/FavoriteHeartIcon";
 import { ReviewLikeIcon } from "../ui/ReviewLikeIcon";
-import { MicOutlineIcon } from "../ui/MicOutlineIcon";
-import { TrashOutlineIcon } from "../ui/TrashOutlineIcon";
+import { VoiceMicSlot } from "../ui/VoiceMicSlot";
 
 type Point = {
   slug: string;
@@ -75,21 +75,51 @@ export function PointPage() {
   const [duration, setDuration] = useState(0);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
-  const [reviewVoiceDataUrl, setReviewVoiceDataUrl] = useState<string | null>(null);
   const [reviewPhotoDataUrl, setReviewPhotoDataUrl] = useState<string | null>(null);
   const [isReviewEditorExpanded, setIsReviewEditorExpanded] = useState(false);
   const [reviews, setReviews] = useState<PublicReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewLikeBusyId, setReviewLikeBusyId] = useState<number | string | null>(null);
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [, setReviewSaved] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const voiceRecorderRef = useRef<MediaRecorder | null>(null);
-  const voiceChunksRef = useRef<BlobPart[]>([]);
-  const voiceStreamRef = useRef<MediaStream | null>(null);
-  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reviewAuthorId = useMemo(() => getOrCreateReviewAuthorId(), []);
+
+  const {
+    voiceDataUrl: reviewVoiceDataUrl,
+    setVoiceDataUrl: setReviewVoiceDataUrl,
+    isRecording: isRecordingVoice,
+    recordingSeconds,
+    clearVoice: clearVoiceReviewBase,
+    bindMicButton: bindReviewMicButton,
+    formatRecordingTime,
+  } = useHoldToRecordVoice({
+    onError: (message) => {
+      if (message) {
+        setReviewError(message);
+        setReviewSaved(false);
+      }
+    },
+    onPressStart: () => {
+      setReviewError(null);
+      setReviewSaved(false);
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        audio.pause();
+        setIsPlaying(false);
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (reviewVoiceDataUrl) setReviewSaved(false);
+  }, [reviewVoiceDataUrl]);
+
+  const reviewMicButtonProps = bindReviewMicButton();
+
+  const clearVoiceReview = () => {
+    clearVoiceReviewBase();
+    setReviewSaved(false);
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -331,9 +361,8 @@ export function PointPage() {
     setIsReviewEditorExpanded(false);
     setReviewSaved(false);
     setReviewError(null);
-    setIsRecordingVoice(false);
     setReviewLikeBusyId(null);
-  }, [expoSlug, pointSlug]);
+  }, [expoSlug, pointSlug, setReviewVoiceDataUrl]);
 
   useEffect(() => {
     if (!expoSlug || !pointSlug) return;
@@ -418,33 +447,6 @@ export function PointPage() {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      if (voiceRecorderRef.current && voiceRecorderRef.current.state !== "inactive") {
-        voiceRecorderRef.current.stop();
-      }
-      if (voiceStreamRef.current) {
-        voiceStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
-  const blobToDataUrl = (blob: Blob): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result;
-        if (typeof result === "string") resolve(result);
-        else reject(new Error("Не удалось прочитать аудио"));
-      };
-      reader.onerror = () => reject(new Error("Ошибка чтения аудио"));
-      reader.readAsDataURL(blob);
-    });
-
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -456,88 +458,6 @@ export function PointPage() {
       reader.onerror = () => reject(new Error("Ошибка чтения изображения"));
       reader.readAsDataURL(file);
     });
-
-  const stopVoiceTracks = () => {
-    if (voiceStreamRef.current) {
-      voiceStreamRef.current.getTracks().forEach((track) => track.stop());
-      voiceStreamRef.current = null;
-    }
-  };
-
-  const startVoiceRecording = async () => {
-    if (isRecordingVoice) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setReviewError("На этом устройстве запись голоса не поддерживается.");
-      return;
-    }
-
-    setReviewError(null);
-    setReviewSaved(false);
-    setRecordingSeconds(0);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      voiceStreamRef.current = stream;
-      voiceRecorderRef.current = recorder;
-      voiceChunksRef.current = [];
-
-      recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data && event.data.size > 0) {
-          voiceChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = new Blob(voiceChunksRef.current, { type: mimeType });
-        try {
-          const dataUrl = await blobToDataUrl(blob);
-          setReviewVoiceDataUrl(dataUrl);
-        } catch {
-          setReviewError("Не удалось сохранить голосовой отзыв.");
-        }
-        stopVoiceTracks();
-        if (recordingTimerRef.current) {
-          clearInterval(recordingTimerRef.current);
-          recordingTimerRef.current = null;
-        }
-        setIsRecordingVoice(false);
-      };
-
-      recorder.start();
-      setIsRecordingVoice(true);
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch {
-      setReviewError("Не удалось получить доступ к микрофону.");
-      setIsRecordingVoice(false);
-      stopVoiceTracks();
-    }
-  };
-
-  const stopVoiceRecording = () => {
-    const recorder = voiceRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
-    recorder.stop();
-  };
-
-  const handleMicPressStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    if (!isRecordingVoice) {
-      void startVoiceRecording();
-    }
-  };
-
-  const handleMicPressEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    stopVoiceRecording();
-  };
-
-  const clearVoiceReview = () => {
-    setReviewVoiceDataUrl(null);
-    setReviewSaved(false);
-  };
 
   const onPickReviewPhoto = async (file: File | undefined) => {
     if (!file) return;
@@ -562,12 +482,6 @@ export function PointPage() {
   const clearReviewPhoto = () => {
     setReviewPhotoDataUrl(null);
     setReviewSaved(false);
-  };
-
-  const formatRecordingTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   const formatReviewDate = (value: string) => {
@@ -912,42 +826,12 @@ export function PointPage() {
                     flexShrink: 0,
                   }}
                 >
-                  {reviewVoiceDataUrl && !isRecordingVoice ? (
-                    <button
-                      type="button"
-                      className="point-review-button point-review-button--ghost point-review-inline-delete"
-                      onClick={clearVoiceReview}
-                      onContextMenu={(event) => event.preventDefault()}
-                      aria-label="Удалить голос"
-                      style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
-                    >
-                      <TrashOutlineIcon className="point-review-delete-icon" />
-                    </button>
-                  ) : (
-                    <div className="point-review-mic-wrap">
-                      <button
-                        type="button"
-                        className={
-                          "point-review-mic-button" +
-                          (isRecordingVoice ? " point-review-mic-button--recording" : "")
-                        }
-                        onPointerDown={handleMicPressStart}
-                        onPointerUp={handleMicPressEnd}
-                        onPointerLeave={handleMicPressEnd}
-                        onPointerCancel={handleMicPressEnd}
-                        onContextMenu={(event) => event.preventDefault()}
-                        aria-label="Удерживайте для записи"
-                        style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
-                      >
-                        <MicOutlineIcon className="point-review-mic-icon" />
-                      </button>
-                      <div className="point-review-mic-tooltip" role="tooltip">
-                        {isRecordingVoice
-                          ? "Запись идет, пока вы держите кнопку"
-                          : "Удерживайте кнопку для записи"}
-                      </div>
-                    </div>
-                  )}
+                  <VoiceMicSlot
+                    isRecording={isRecordingVoice}
+                    hasVoice={Boolean(reviewVoiceDataUrl)}
+                    onClear={clearVoiceReview}
+                    micButtonProps={reviewMicButtonProps}
+                  />
                 </div>
               </div>
 

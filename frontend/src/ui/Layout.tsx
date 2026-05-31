@@ -1,14 +1,9 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useHoldToRecordVoice } from "../lib/useHoldToRecordVoice";
 import { GuideHelper } from "./GuideHelper";
-import { MicOutlineIcon } from "./MicOutlineIcon";
 import { TrashOutlineIcon } from "./TrashOutlineIcon";
+import { VoiceMicSlot } from "./VoiceMicSlot";
 
 const FEEDBACK_HIDE_UNTIL_KEY = "iziumGuide_feedbackHideUntil";
 const FEEDBACK_SENT_FOR_ROUTE_KEY = "iziumGuide_feedbackSentForRoute";
@@ -47,18 +42,32 @@ export function Layout(props: {
   const [feedbackKind, setFeedbackKind] = useState<"wish" | "issue" | "other">("wish");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackContact, setFeedbackContact] = useState("");
-  const [feedbackVoiceDataUrl, setFeedbackVoiceDataUrl] = useState<string | null>(null);
   const [feedbackPhotoDataUrl, setFeedbackPhotoDataUrl] = useState<string | null>(null);
-  const [isRecordingFeedbackVoice, setIsRecordingFeedbackVoice] = useState(false);
-  const [feedbackRecordingSeconds, setFeedbackRecordingSeconds] = useState(0);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackRouteMeta, setFeedbackRouteMeta] = useState<RouteFeedbackDetail | null>(null);
-  const feedbackVoiceRecorderRef = useRef<MediaRecorder | null>(null);
-  const feedbackVoiceChunksRef = useRef<BlobPart[]>([]);
-  const feedbackVoiceStreamRef = useRef<MediaStream | null>(null);
-  const feedbackRecordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const {
+    voiceDataUrl: feedbackVoiceDataUrl,
+    setVoiceDataUrl: setFeedbackVoiceDataUrl,
+    isRecording: isRecordingFeedbackVoice,
+    recordingSeconds: feedbackRecordingSeconds,
+    clearVoice: clearFeedbackVoiceBase,
+    bindMicButton: bindFeedbackMicButton,
+    formatRecordingTime,
+  } = useHoldToRecordVoice({
+    onError: (message) => {
+      if (message) setFeedbackError(message);
+    },
+  });
+
+  const feedbackMicButtonProps = bindFeedbackMicButton();
+
+  const clearFeedbackVoice = () => {
+    clearFeedbackVoiceBase();
+    setFeedbackError(null);
+  };
 
   const footerTheme = isHistoryActive
     ? {
@@ -175,12 +184,6 @@ export function Layout(props: {
         // ignore localStorage errors
       }
     }
-    stopFeedbackVoiceRecording();
-    if (feedbackRecordingTimerRef.current) {
-      clearInterval(feedbackRecordingTimerRef.current);
-      feedbackRecordingTimerRef.current = null;
-    }
-    stopFeedbackVoiceTracks();
     setFeedbackOpen(false);
     setFeedbackRouteMeta(null);
   };
@@ -197,25 +200,6 @@ export function Layout(props: {
     setFeedbackOpen(true);
   };
 
-  const stopFeedbackVoiceTracks = () => {
-    if (feedbackVoiceStreamRef.current) {
-      feedbackVoiceStreamRef.current.getTracks().forEach((track) => track.stop());
-      feedbackVoiceStreamRef.current = null;
-    }
-  };
-
-  const blobToDataUrl = (blob: Blob): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result;
-        if (typeof result === "string") resolve(result);
-        else reject(new Error("Не удалось прочитать аудио"));
-      };
-      reader.onerror = () => reject(new Error("Ошибка чтения аудио"));
-      reader.readAsDataURL(blob);
-    });
-
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -227,86 +211,6 @@ export function Layout(props: {
       reader.onerror = () => reject(new Error("Ошибка чтения изображения"));
       reader.readAsDataURL(file);
     });
-
-  const formatRecordingTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const startFeedbackVoiceRecording = async () => {
-    if (isRecordingFeedbackVoice) return;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setFeedbackError("На этом устройстве запись голоса не поддерживается.");
-      return;
-    }
-
-    setFeedbackError(null);
-    setFeedbackRecordingSeconds(0);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      feedbackVoiceStreamRef.current = stream;
-      feedbackVoiceRecorderRef.current = recorder;
-      feedbackVoiceChunksRef.current = [];
-
-      recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data && event.data.size > 0) {
-          feedbackVoiceChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = new Blob(feedbackVoiceChunksRef.current, { type: mimeType });
-        try {
-          const dataUrl = await blobToDataUrl(blob);
-          setFeedbackVoiceDataUrl(dataUrl);
-        } catch {
-          setFeedbackError("Не удалось сохранить голосовое сообщение.");
-        }
-        stopFeedbackVoiceTracks();
-        if (feedbackRecordingTimerRef.current) {
-          clearInterval(feedbackRecordingTimerRef.current);
-          feedbackRecordingTimerRef.current = null;
-        }
-        setIsRecordingFeedbackVoice(false);
-      };
-
-      recorder.start();
-      setIsRecordingFeedbackVoice(true);
-      feedbackRecordingTimerRef.current = setInterval(() => {
-        setFeedbackRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } catch {
-      setFeedbackError("Не удалось получить доступ к микрофону.");
-      setIsRecordingFeedbackVoice(false);
-      stopFeedbackVoiceTracks();
-    }
-  };
-
-  const stopFeedbackVoiceRecording = () => {
-    const recorder = feedbackVoiceRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
-    recorder.stop();
-  };
-
-  const handleFeedbackMicPressStart = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    if (!isRecordingFeedbackVoice) {
-      void startFeedbackVoiceRecording();
-    }
-  };
-
-  const handleFeedbackMicPressEnd = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    stopFeedbackVoiceRecording();
-  };
-
-  const clearFeedbackVoice = () => {
-    setFeedbackVoiceDataUrl(null);
-    setFeedbackError(null);
-  };
 
   const onPickFeedbackPhoto = async (file: File | undefined) => {
     if (!file) return;
@@ -397,22 +301,6 @@ export function Layout(props: {
       setFeedbackBusy(false);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (feedbackRecordingTimerRef.current) {
-        clearInterval(feedbackRecordingTimerRef.current);
-        feedbackRecordingTimerRef.current = null;
-      }
-      if (
-        feedbackVoiceRecorderRef.current &&
-        feedbackVoiceRecorderRef.current.state !== "inactive"
-      ) {
-        feedbackVoiceRecorderRef.current.stop();
-      }
-      stopFeedbackVoiceTracks();
-    };
-  }, []);
 
   return (
     <div
@@ -774,44 +662,13 @@ export function Layout(props: {
                       justifyContent: "flex-start",
                     }}
                   >
-                    {feedbackVoiceDataUrl && !isRecordingFeedbackVoice ? (
-                      <button
-                        type="button"
-                        className="point-review-button point-review-button--ghost point-review-inline-delete"
-                        onClick={clearFeedbackVoice}
-                        onContextMenu={(event) => event.preventDefault()}
-                        aria-label="Удалить голос"
-                        disabled={feedbackBusy}
-                        style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
-                      >
-                        <TrashOutlineIcon className="point-review-delete-icon" />
-                      </button>
-                    ) : (
-                      <div className="point-review-mic-wrap">
-                        <button
-                          type="button"
-                          className={
-                            "point-review-mic-button" +
-                            (isRecordingFeedbackVoice ? " point-review-mic-button--recording" : "")
-                          }
-                          onPointerDown={handleFeedbackMicPressStart}
-                          onPointerUp={handleFeedbackMicPressEnd}
-                          onPointerLeave={handleFeedbackMicPressEnd}
-                          onPointerCancel={handleFeedbackMicPressEnd}
-                          onContextMenu={(event) => event.preventDefault()}
-                          aria-label="Удерживайте для записи"
-                          disabled={feedbackBusy}
-                          style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
-                        >
-                          <MicOutlineIcon className="point-review-mic-icon" />
-                        </button>
-                        <div className="point-review-mic-tooltip" role="tooltip">
-                          {isRecordingFeedbackVoice
-                          ? "Запись идет, пока вы держите кнопку"
-                          : "Удерживайте кнопку для записи"}
-                        </div>
-                      </div>
-                    )}
+                    <VoiceMicSlot
+                      isRecording={isRecordingFeedbackVoice}
+                      hasVoice={Boolean(feedbackVoiceDataUrl)}
+                      disabled={feedbackBusy}
+                      onClear={clearFeedbackVoice}
+                      micButtonProps={feedbackMicButtonProps}
+                    />
                     {!feedbackPhotoDataUrl ? (
                       <label
                         className="point-review-button point-review-photo-upload"
