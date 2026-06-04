@@ -28,7 +28,6 @@ export function VoiceMicSlot({
         onContextMenu={(event) => event.preventDefault()}
         aria-label="Удалить голос"
         disabled={disabled}
-        style={{ width: 46, height: 46, padding: 0, justifyContent: "center" }}
       >
         <TrashOutlineIcon className="point-review-delete-icon" />
       </button>

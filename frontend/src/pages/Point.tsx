@@ -779,27 +779,24 @@ export function PointPage() {
                 ))}
               </div>
 
-              <div
-                style={{
-                  marginTop: 12,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <div
-                  className="point-review-editor-slot"
-                  style={{ flex: 1, minWidth: 0, minHeight: 76 }}
-                >
-                  {reviewVoiceDataUrl && !isRecordingVoice ? (
+              <div className="point-review-compose-row">
+                {reviewVoiceDataUrl && !isRecordingVoice ? (
+                  <div className="point-review-playback-row">
                     <audio
                       className="point-review-audio-inline"
                       controls
                       src={reviewVoiceDataUrl}
-                      style={{ width: "100%" }}
                     />
-                  ) : (
-                    <>
+                    <VoiceMicSlot
+                      isRecording={false}
+                      hasVoice
+                      onClear={clearVoiceReview}
+                      micButtonRef={attachReviewMicButton}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="point-review-editor-slot">
                       <textarea
                         className={
                           "point-review-text" +
@@ -829,29 +826,18 @@ export function PointPage() {
                           Идет запись: {formatRecordingTime(recordingSeconds)}
                         </div>
                       )}
-                    </>
-                  )}
-                </div>
-                <div
-                  className="point-review-voice-controls"
-                  style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    gap: 8,
-                    width: 100,
-                    alignItems: "center",
-                    justifyContent: "flex-start",
-                    flexShrink: 0,
-                  }}
-                >
-                  <VoiceMicSlot
-                    isRecording={isRecordingVoice}
-                    hasVoice={Boolean(reviewVoiceDataUrl)}
-                    onClear={clearVoiceReview}
-                    micButtonRef={attachReviewMicButton}
-                    wrapClassName=" point-review-mic-wrap--raised"
-                  />
-                </div>
+                    </div>
+                    <div className="point-review-voice-controls">
+                      <VoiceMicSlot
+                        isRecording={isRecordingVoice}
+                        hasVoice={false}
+                        onClear={clearVoiceReview}
+                        micButtonRef={attachReviewMicButton}
+                        wrapClassName=" point-review-mic-wrap--raised"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {reviewPhotoDataUrl && (

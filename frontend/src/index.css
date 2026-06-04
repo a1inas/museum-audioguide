@@ -379,6 +379,22 @@ a:hover {
   align-items: flex-end;
 }
 
+.point-review-compose-row {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.point-review-playback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
 .point-review-mic-wrap {
   position: relative;
   display: inline-flex;
@@ -392,6 +408,11 @@ a:hover {
 .point-review-voice-controls {
   position: relative;
   z-index: 41;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
 }
 
 .point-review-text {
@@ -412,9 +433,14 @@ a:hover {
 }
 
 .point-review-audio-inline {
-  flex: 1;
+  flex: 1 1 auto;
   width: 100%;
   min-width: 0;
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+  margin: 0;
+  align-self: center;
   border-radius: 999px;
   background: linear-gradient(
     135deg,
@@ -426,10 +452,20 @@ a:hover {
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 8px 18px rgba(120, 90, 52, 0.16);
   padding: 3px;
+  box-sizing: border-box;
+}
+
+.point-review-playback-row .point-review-inline-delete {
+  flex: 0 0 46px;
+  align-self: center;
+  margin: 0;
 }
 
 .point-review-editor-slot {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 76px;
 }
 
 .point-review-text--recording {
@@ -574,12 +610,15 @@ a:hover {
 }
 
 .point-review-inline-delete {
+  width: 46px;
+  height: 46px;
   min-height: 46px;
-  min-width: 52px;
-  padding: 4px;
+  min-width: 46px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   -webkit-touch-callout: none;
   touch-action: manipulation;
   user-select: none;
