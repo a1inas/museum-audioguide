@@ -414,6 +414,15 @@ a:hover {
   padding: 3px;
 }
 
+.point-review-editor-slot {
+  position: relative;
+}
+
+.point-review-text--recording {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .point-review-recording-inline {
   flex: 1;
   min-width: 0;
@@ -431,6 +440,12 @@ a:hover {
   align-items: center;
   font-size: 14px;
   font-weight: 700;
+}
+
+.point-review-recording-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
 }
 
 .point-review-text--expanded {
@@ -456,7 +471,7 @@ a:hover {
   cursor: pointer;
   flex-shrink: 0;
   -webkit-touch-callout: none;
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }

@@ -24,6 +24,23 @@ const isTouchLikeDevice =
   typeof window !== "undefined" &&
   ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
+function pickRecorderMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  const candidates = [
+    "audio/mp4",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/aac",
+  ];
+  for (const mime of candidates) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return undefined;
+}
+
+/** iOS often delivers empty blobs unless recording uses a timeslice. */
+const RECORDER_TIMESLICE_MS = 250;
+
 type HoldToRecordOptions = {
   onError?: (message: string | null) => void;
   /** Called when the user presses the mic (e.g. pause other audio on the page). */
@@ -80,7 +97,12 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
     setRecordingSeconds(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      onPressStartExtra?.();
+
+      const mimeType = pickRecorderMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       streamRef.current = stream;
       recorderRef.current = recorder;
       chunksRef.current = [];
@@ -93,8 +115,8 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
 
       recorder.onstop = async () => {
         recorderRef.current = null;
-        const mimeType = recorder.mimeType || "audio/webm";
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const blobType = recorder.mimeType || mimeType || "audio/mp4";
+        const blob = new Blob(chunksRef.current, { type: blobType });
         try {
           const dataUrl = await blobToDataUrl(blob);
           setVoiceDataUrl(dataUrl);
@@ -106,7 +128,7 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
         setIsRecording(false);
       };
 
-      recorder.start();
+      recorder.start(RECORDER_TIMESLICE_MS);
       setIsRecording(true);
       timerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => prev + 1);
@@ -121,16 +143,15 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
       stopTracks();
       clearTimer();
     }
-  }, [clearTimer, onError, stopTracks]);
+  }, [clearTimer, onError, onPressStartExtra, stopTracks]);
 
   const onPressStart = useCallback(() => {
     micHeldRef.current = true;
     stopWhenReadyRef.current = false;
-    onPressStartExtra?.();
     if (recorderRef.current?.state !== "recording") {
       void startRecording();
     }
-  }, [onPressStartExtra, startRecording]);
+  }, [startRecording]);
 
   const onPressEnd = useCallback(() => {
     micHeldRef.current = false;
@@ -167,8 +188,8 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
 
     const touchHandlers = isTouchLikeDevice
       ? {
-          onTouchStart: (event: TouchEvent<HTMLButtonElement>) => {
-            event.preventDefault();
+          onTouchStart: (_event: TouchEvent<HTMLButtonElement>) => {
+            // Do not preventDefault here — iOS needs the native touch for getUserMedia.
             touchPressRef.current = true;
             onPressStart();
           },
@@ -178,8 +199,7 @@ export function useHoldToRecordVoice(options?: HoldToRecordOptions) {
             touchPressRef.current = false;
             onPressEnd();
           },
-          onTouchCancel: (event: TouchEvent<HTMLButtonElement>) => {
-            event.preventDefault();
+          onTouchCancel: (_event: TouchEvent<HTMLButtonElement>) => {
             touchPressRef.current = false;
             onPressEnd();
           },

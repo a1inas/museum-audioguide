@@ -99,22 +99,31 @@ export function PointPage() {
         setReviewSaved(false);
       }
     },
-    onPressStart: () => {
-      setReviewError(null);
-      setReviewSaved(false);
-      const audio = audioRef.current;
-      if (audio && !audio.paused) {
-        audio.pause();
-        setIsPlaying(false);
-      }
-    },
   });
+
+  useEffect(() => {
+    if (!isRecordingVoice) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    const wasPlaying = !audio.paused;
+    audio.pause();
+    audio.muted = true;
+    if (wasPlaying) {
+      queueMicrotask(() => setIsPlaying(false));
+    }
+    return () => {
+      audio.muted = false;
+    };
+  }, [isRecordingVoice]);
 
   useEffect(() => {
     if (reviewVoiceDataUrl) setReviewSaved(false);
   }, [reviewVoiceDataUrl]);
 
-  const reviewMicButtonProps = bindReviewMicButton();
+  const reviewMicButtonProps = useMemo(
+    () => bindReviewMicButton(),
+    [bindReviewMicButton],
+  );
 
   const clearVoiceReview = () => {
     clearVoiceReviewBase();
@@ -782,12 +791,11 @@ export function PointPage() {
                   alignItems: "center",
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {isRecordingVoice ? (
-                    <div className="point-review-recording-inline" style={{ minHeight: 76 }}>
-                      Идет запись: {formatRecordingTime(recordingSeconds)}
-                    </div>
-                  ) : reviewVoiceDataUrl ? (
+                <div
+                  className="point-review-editor-slot"
+                  style={{ flex: 1, minWidth: 0, minHeight: 76 }}
+                >
+                  {reviewVoiceDataUrl && !isRecordingVoice ? (
                     <audio
                       className="point-review-audio-inline"
                       controls
@@ -795,24 +803,37 @@ export function PointPage() {
                       style={{ width: "100%" }}
                     />
                   ) : (
-                    <textarea
-                      className={
-                        "point-review-text" +
-                        (isReviewEditorExpanded ? " point-review-text--expanded" : "")
-                      }
-                      placeholder="Напишите ваш отзыв..."
-                      value={reviewText}
-                      onFocus={() => setIsReviewEditorExpanded(true)}
-                      onChange={(e) => {
-                        setReviewText(e.target.value);
-                        setReviewSaved(false);
-                      }}
-                      style={
-                        isReviewEditorExpanded
-                          ? undefined
-                          : { minHeight: 76, maxHeight: 76 }
-                      }
-                    />
+                    <>
+                      <textarea
+                        className={
+                          "point-review-text" +
+                          (isReviewEditorExpanded ? " point-review-text--expanded" : "") +
+                          (isRecordingVoice ? " point-review-text--recording" : "")
+                        }
+                        placeholder="Напишите ваш отзыв..."
+                        value={reviewText}
+                        readOnly={isRecordingVoice}
+                        aria-hidden={isRecordingVoice}
+                        onFocus={() => setIsReviewEditorExpanded(true)}
+                        onChange={(e) => {
+                          setReviewText(e.target.value);
+                          setReviewSaved(false);
+                        }}
+                        style={
+                          isReviewEditorExpanded
+                            ? { minHeight: 76 }
+                            : { minHeight: 76, maxHeight: 76 }
+                        }
+                      />
+                      {isRecordingVoice && (
+                        <div
+                          className="point-review-recording-inline point-review-recording-overlay"
+                          aria-live="polite"
+                        >
+                          Идет запись: {formatRecordingTime(recordingSeconds)}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div
