@@ -54,15 +54,13 @@ export function Layout(props: {
     isRecording: isRecordingFeedbackVoice,
     recordingSeconds: feedbackRecordingSeconds,
     clearVoice: clearFeedbackVoiceBase,
-    bindMicButton: bindFeedbackMicButton,
+    micButtonRef: attachFeedbackMicButton,
     formatRecordingTime,
   } = useHoldToRecordVoice({
     onError: (message) => {
       if (message) setFeedbackError(message);
     },
   });
-
-  const feedbackMicButtonProps = bindFeedbackMicButton();
 
   const clearFeedbackVoice = () => {
     clearFeedbackVoiceBase();
@@ -505,7 +503,9 @@ export function Layout(props: {
         <button
           type="button"
           onClick={openManualFeedback}
-          className="feedback-fab"
+          className={
+            "feedback-fab" + (isPointPage ? " feedback-fab--on-point-page" : "")
+          }
           aria-label="Открыть форму обратной связи"
         >
           <svg
@@ -667,7 +667,7 @@ export function Layout(props: {
                       hasVoice={Boolean(feedbackVoiceDataUrl)}
                       disabled={feedbackBusy}
                       onClear={clearFeedbackVoice}
-                      micButtonProps={feedbackMicButtonProps}
+                      micButtonRef={attachFeedbackMicButton}
                     />
                     {!feedbackPhotoDataUrl ? (
                       <label

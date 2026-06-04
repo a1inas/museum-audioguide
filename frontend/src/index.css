@@ -211,6 +211,10 @@ a:hover {
   );
 }
 
+.feedback-fab--on-point-page {
+  bottom: 96px;
+}
+
 .map-page {
   display: grid;
   gap: 18px;
@@ -309,7 +313,7 @@ a:hover {
 }
 
 .point-review-section {
-  padding: 22px 16px;
+  padding: 22px 16px 88px;
   background: linear-gradient(
     135deg,
     rgba(251, 244, 230, 0.97),
@@ -378,6 +382,16 @@ a:hover {
 .point-review-mic-wrap {
   position: relative;
   display: inline-flex;
+}
+
+.point-review-mic-wrap--raised {
+  position: relative;
+  z-index: 42;
+}
+
+.point-review-voice-controls {
+  position: relative;
+  z-index: 41;
 }
 
 .point-review-text {

@@ -90,7 +90,7 @@ export function PointPage() {
     isRecording: isRecordingVoice,
     recordingSeconds,
     clearVoice: clearVoiceReviewBase,
-    bindMicButton: bindReviewMicButton,
+    micButtonRef: attachReviewMicButton,
     formatRecordingTime,
   } = useHoldToRecordVoice({
     onError: (message) => {
@@ -99,31 +99,27 @@ export function PointPage() {
         setReviewSaved(false);
       }
     },
+    onStreamReady: () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const wasPlaying = !audio.paused;
+      audio.pause();
+      audio.muted = true;
+      if (wasPlaying) {
+        queueMicrotask(() => setIsPlaying(false));
+      }
+    },
   });
 
   useEffect(() => {
-    if (!isRecordingVoice) return;
+    if (isRecordingVoice) return;
     const audio = audioRef.current;
-    if (!audio) return;
-    const wasPlaying = !audio.paused;
-    audio.pause();
-    audio.muted = true;
-    if (wasPlaying) {
-      queueMicrotask(() => setIsPlaying(false));
-    }
-    return () => {
-      audio.muted = false;
-    };
+    if (audio) audio.muted = false;
   }, [isRecordingVoice]);
 
   useEffect(() => {
     if (reviewVoiceDataUrl) setReviewSaved(false);
   }, [reviewVoiceDataUrl]);
-
-  const reviewMicButtonProps = useMemo(
-    () => bindReviewMicButton(),
-    [bindReviewMicButton],
-  );
 
   const clearVoiceReview = () => {
     clearVoiceReviewBase();
@@ -837,6 +833,7 @@ export function PointPage() {
                   )}
                 </div>
                 <div
+                  className="point-review-voice-controls"
                   style={{
                     display: "flex",
                     flexDirection: "row",
@@ -851,7 +848,8 @@ export function PointPage() {
                     isRecording={isRecordingVoice}
                     hasVoice={Boolean(reviewVoiceDataUrl)}
                     onClear={clearVoiceReview}
-                    micButtonProps={reviewMicButtonProps}
+                    micButtonRef={attachReviewMicButton}
+                    wrapClassName=" point-review-mic-wrap--raised"
                   />
                 </div>
               </div>

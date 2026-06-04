@@ -6,7 +6,8 @@ type VoiceMicSlotProps = {
   hasVoice: boolean;
   disabled?: boolean;
   onClear: () => void;
-  micButtonProps: Record<string, unknown>;
+  micButtonRef: (node: HTMLButtonElement | null) => void;
+  wrapClassName?: string;
 };
 
 /** Mic / trash controls shared by feedback form and point review. */
@@ -15,7 +16,8 @@ export function VoiceMicSlot({
   hasVoice,
   disabled = false,
   onClear,
-  micButtonProps,
+  micButtonRef,
+  wrapClassName = "",
 }: VoiceMicSlotProps) {
   if (hasVoice && !isRecording) {
     return (
@@ -34,8 +36,9 @@ export function VoiceMicSlot({
   }
 
   return (
-    <div className="point-review-mic-wrap">
+    <div className={"point-review-mic-wrap" + wrapClassName}>
       <button
+        ref={micButtonRef}
         type="button"
         className={
           "point-review-mic-button" +
@@ -43,8 +46,8 @@ export function VoiceMicSlot({
         }
         aria-label="Удерживайте для записи"
         disabled={disabled}
+        onContextMenu={(event) => event.preventDefault()}
         style={{ border: "1px solid rgba(152, 110, 60, 0.42)" }}
-        {...micButtonProps}
       >
         <MicOutlineIcon className="point-review-mic-icon" />
       </button>
