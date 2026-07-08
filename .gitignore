@@ -10,6 +10,15 @@ backend/dist/
 .env.*
 !.env.example
 
+# Python caches + diploma helper files (not part of app)
+__pycache__/
+*.pyc
+build_*.py
+generate_*.py
+update_defense_speech.py
+fetch_tech_icons.py
+diploma_defense_materials/
+
 # Logs
 *.log
 npm-debug.log*
